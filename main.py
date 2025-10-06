@@ -33,6 +33,8 @@ def root():
 async def upload_excel(file: UploadFile = File(...)):
     """
     Upload Excel file with motorcycle data.
+    Expected structure: 6 sheets for each budget segment.
+    Each sheet should have columns: Brand, Model, Type, Engine, Fuel, Price
     """
     global excel_data
     
@@ -77,10 +79,6 @@ async def query_motorcycles(request: VehicleQuery):
         raise HTTPException(status_code=404, detail=f"Budget segment '{request.budget}' not found. Available: {list(excel_data.keys())}")
     
     df = excel_data[sheet_name]
-    
-    # DEBUG: Print column names
-    print(f"DEBUG: Columns in sheet '{sheet_name}': {df.columns.tolist()}")
-    print(f"DEBUG: First row data: {df.iloc[0].to_dict() if len(df) > 0 else 'Empty'}")
     
     # Find the Type column
     type_column = None
@@ -129,19 +127,23 @@ async def query_motorcycles(request: VehicleQuery):
     recommendations = []
     
     for idx, row in results.iterrows():
-        brand_model = str(row.get('Brand', '') or row.get('Motorcycle', '') or row.iloc[0])
+        # Get Brand and Model directly from columns
+        brand = str(row.get('Brand', 'N/A')).strip()
+        model = str(row.get('Model', 'N/A')).strip()
         
-        parts = brand_model.split(None, 1)
-        brand = parts[0] if len(parts) > 0 else brand_model
-        model = parts[1] if len(parts) > 1 else ""
+        # Handle NaN values
+        if brand == 'nan':
+            brand = 'N/A'
+        if model == 'nan':
+            model = 'N/A'
         
         recommendation = {
             "id": len(recommendations) + 1,
             "brand": brand,
             "model": model,
-            "price": str(row.get('Price', '') or row.get('Average Price Range', '') or 'N/A'),
-            "engine": str(row.get('Engine', '') or row.get('Engine Displacement', '') or 'N/A'),
-            "fuelConsumption": str(row.get('Fuel', '') or row.get('Fuel Consumption', '') or 'N/A')
+            "price": str(row.get('Price', 'N/A')).strip(),
+            "engine": str(row.get('Engine', 'N/A')).strip(),
+            "fuelConsumption": str(row.get('Fuel', 'N/A')).strip()
         }
         
         recommendations.append(recommendation)
