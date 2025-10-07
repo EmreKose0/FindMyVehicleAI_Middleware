@@ -135,8 +135,11 @@ async def query_motorcycles(request: VehicleQuery):
     if filtered_df.empty:
         filtered_df = df[df['Type_Lower'].str.contains(requested_type, na=False)]
     
-    # Get up to 3 results
-    results = filtered_df.head(3)
+    # Get up to 3 results     results = filtered_df.head(3) shoul be this
+    if len(filtered_df) > 3:
+        results = filtered_df.sample(n=3)
+    else:
+        results = filtered_df
     
     if results.empty:
         print(f"❌ No motorcycles found for type '{request.vehicleSubtype}'")
