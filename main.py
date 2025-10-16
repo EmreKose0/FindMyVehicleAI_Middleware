@@ -13,6 +13,8 @@ class VehicleQuery(BaseModel):
     vehicleType: str
     budget: str
     vehicleSubtype: str
+    sound: str
+    fuelConsumption: str
 
 class VehicleRecommendation(BaseModel):
     id: int
@@ -68,7 +70,8 @@ async def query_motorcycles(request: VehicleQuery):
     print(f"   Vehicle Type: {request.vehicleType}")
     print(f"   Budget: {request.budget}")
     print(f"   Subtype: {request.vehicleSubtype}")
-    
+    print(f"   Sound: {request.sound}")
+    print(f"   Fuel Consumption: {request.fuelConsumption}")
     global excel_data
     
     if excel_data is None:
@@ -118,7 +121,8 @@ async def query_motorcycles(request: VehicleQuery):
             "query": {
                 "vehicleType": request.vehicleType,
                 "budget": request.budget,
-                "vehicleSubtype": request.vehicleSubtype
+                "vehicleSubtype": request.vehicleSubtype,
+                "sound": request.sound
             },
             "recommendations": [],
             "message": f"Type column not found. Available columns: {df.columns.tolist()}"
@@ -134,10 +138,64 @@ async def query_motorcycles(request: VehicleQuery):
     # If no exact match, try partial matching
     if filtered_df.empty:
         filtered_df = df[df['Type_Lower'].str.contains(requested_type, na=False)]
+
+        # Filter by Sound level
+    if request.sound and request.sound.lower() != "don't care":
+        sound_column = None
+        for col in df.columns:
+            if 'sound' in col.lower():
+                sound_column = col
+                break
+        
+        if sound_column and len(filtered_df) > 0:
+            filtered_df['Sound_Lower'] = filtered_df[sound_column].astype(str).str.lower().str.strip()
+            requested_sound = request.sound.lower().strip()
+            
+            if requested_sound == "high":
+                # High seçilirse sadece High olanlar
+                filtered_df = filtered_df[filtered_df['Sound_Lower'] == 'high']
+                print(f"   Sound filter: High only -> {len(filtered_df)} matches")
+            elif requested_sound == "medium":
+                # Medium seçilirse Medium VE High olanlar
+                filtered_df = filtered_df[filtered_df['Sound_Lower'].isin(['medium', 'high'])]
+                print(f"   Sound filter: Medium + High -> {len(filtered_df)} matches")
+            else:
+                print(f"   ⚠️ Unknown sound level: {request.sound}")
+        else:
+            print(f"   ⚠️ Sound column not found or no data to filter")
+        
+            # Filter by Fuel Consumption
+    if request.fuelConsumption and request.fuelConsumption.lower() != "don't care":
+        fuel_column = None
+        for col in df.columns:
+            if 'fuel' in col.lower() and 'consumption' in col.lower():
+                fuel_column = col
+                break
+        
+        if fuel_column and len(filtered_df) > 0:
+            filtered_df['Fuel_Lower'] = filtered_df[fuel_column].astype(str).str.lower().str.strip()
+            requested_fuel = request.fuelConsumption.lower().strip()
+            
+            if requested_fuel == "low":
+                # Low seçilirse sadece Low olanlar
+                filtered_df = filtered_df[filtered_df['Fuel_Lower'] == 'low']
+                print(f"   Fuel Consumption filter: Low only -> {len(filtered_df)} matches")
+            elif requested_fuel == "medium":
+                # Medium seçilirse Low VE Medium olanlar
+                filtered_df = filtered_df[filtered_df['Fuel_Lower'].isin(['low', 'medium'])]
+                print(f"   Fuel Consumption filter: Low + Medium -> {len(filtered_df)} matches")
+            elif requested_fuel == "high":
+                # High seçilirse tüm seviyeler (filtreleme yok gibi ama açık olsun)
+                print(f"   Fuel Consumption filter: All levels (High allows all)")
+            else:
+                print(f"   ⚠️ Unknown fuel consumption level: {request.fuelConsumption}")
+        else:
+            print(f"   ⚠️ Fuel Consumption column not found or no data to filter")
     
-    # Get up to 3 results     results = filtered_df.head(3) shoul be this
+    
+    # Get up to 3 results     #results = filtered_df.head(3) shoul be this
     if len(filtered_df) > 3:
-        results = filtered_df.sample(n=3)
+        results = filtered_df.head(3)
     else:
         results = filtered_df
     
@@ -147,7 +205,9 @@ async def query_motorcycles(request: VehicleQuery):
             "query": {
                 "vehicleType": request.vehicleType,
                 "budget": request.budget,
-                "vehicleSubtype": request.vehicleSubtype
+                "vehicleSubtype": request.vehicleSubtype,
+                "sound": request.sound,
+                "fuelConsumption": request.fuelConsumption
             },
             "recommendations": [],
             "message": f"No motorcycles found for type '{request.vehicleSubtype}' in budget '{request.budget}'"
@@ -171,7 +231,8 @@ async def query_motorcycles(request: VehicleQuery):
             "model": model,
             "price": str(row.get('Price', 'N/A')).strip(),
             "engine": str(row.get('Engine', 'N/A')).strip(),
-            "fuelConsumption": str(row.get('Fuel', 'N/A')).strip()
+            "fuelConsumption": str(row.get('Fuel', 'N/A')).strip(),
+            "sound": str(row.get('Sound', 'N/A')).strip()
         }
         
         recommendations.append(recommendation)
@@ -184,7 +245,8 @@ async def query_motorcycles(request: VehicleQuery):
         "query": {
             "vehicleType": request.vehicleType,
             "budget": request.budget,
-            "vehicleSubtype": request.vehicleSubtype
+            "vehicleSubtype": request.vehicleSubtype,
+            "sound": request.sound
         },
         "recommendations": recommendations,
         "total_found": len(filtered_df)
